@@ -1,50 +1,84 @@
-<script>
-  const CONFIG_URL = "https://iting0901.github.io/noreservation/config.json";
-  const output = document.getElementById("output");
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>noreservation</title>
+    <style>
+      body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding: 24px; }
+      h1 { margin: 0 0 8px; }
+      .hint { color: #555; margin: 0 0 16px; }
+      pre { background: #f6f8fa; padding: 12px; border-radius: 8px; white-space: pre-wrap; }
+      .ok { color: #0a7; font-weight: 700; }
+      .err { color: #c00; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>noreservation</h1>
+    <p class="hint">測試：GitHub Pages → config.json → GAS</p>
+    <p>config.json：<a href="./config.json" target="_blank">開啟</a></p>
 
-  function log(msg) {
-    console.log(msg);
-    output.textContent += "\n" + msg;
-  }
+    <pre id="output">loading...</pre>
 
-  async function loadConfig() {
-    const res = await fetch(CONFIG_URL, { cache: "no-store" });
-    if (!res.ok) throw new Error("config.json 讀不到：" + res.status);
-    return await res.json();
-  }
+    <script>
+      const CONFIG_URL = "https://iting0901.github.io/noreservation/config.json";
+      const output = document.getElementById("output");
 
-  function extractJsonFromHtml(htmlText) {
-    const match = htmlText.match(/<pre id="payload">([\s\S]*?)<\/pre>/);
-    if (!match) throw new Error("GAS 回傳格式不對（找不到 payload）");
-    return JSON.parse(match[1]);
-  }
+      function setText(text, cls) {
+        output.className = cls || "";
+        output.textContent = text;
+      }
 
-  async function callGas(url) {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("GAS 讀不到：" + res.status);
-    const htmlText = await res.text();
-    return extractJsonFromHtml(htmlText);
-  }
+      async function loadConfig() {
+        const res = await fetch(CONFIG_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error("config.json 讀不到：" + res.status);
+        return await res.json();
+      }
 
-  async function main() {
-    log("開始讀取 config.json ...");
-    const cfg = await loadConfig();
-    log("config OK");
+      function extractJsonFromHtml(htmlText) {
+        const match = htmlText.match(/<pre id="payload">([\s\S]*?)<\/pre>/);
+        if (!match) throw new Error("GAS 回傳格式不對（找不到 payload）");
+        return JSON.parse(match[1]);
+      }
 
-    log("呼叫 GAS 1...");
-    const gas1 = await callGas(cfg.scriptUrl1);
-    log("GAS 1：" + JSON.stringify(gas1));
+      async function callGas(url) {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error("GAS 讀不到：" + res.status);
+        const htmlText = await res.text();
+        return extractJsonFromHtml(htmlText);
+      }
 
-    log("呼叫 GAS 2...");
-    const gas2 = await callGas(cfg.scriptUrl2);
-    log("GAS 2：" + JSON.stringify(gas2));
+      (async function main() {
+        try {
+          setText("1) 讀取 config.json ...");
+          const cfg = await loadConfig();
 
-    log("全部完成 ✅");
-  }
+          setText(
+            "1) config OK ✅\n\n" +
+            "2) 呼叫 GAS 1 ...",
+            "ok"
+          );
+          const gas1 = await callGas(cfg.scriptUrl1);
 
-  main().catch(err => {
-    console.error(err);
-    output.textContent = "❌ 錯誤：\n" + err.message;
-    alert(err.message);
-  });
-</script>
+          setText(
+            "1) config OK ✅\n" +
+            "2) GAS 1 OK ✅ " + JSON.stringify(gas1) + "\n\n" +
+            "3) 呼叫 GAS 2 ...",
+            "ok"
+          );
+          const gas2 = await callGas(cfg.scriptUrl2);
+
+          setText(
+            "全部完成 ✅\n\n" +
+            "GAS 1: " + JSON.stringify(gas1) + "\n" +
+            "GAS 2: " + JSON.stringify(gas2),
+            "ok"
+          );
+        } catch (err) {
+          console.error(err);
+          setText("❌ 錯誤：\n" + err.message, "err");
+        }
+      })();
+    </script>
+  </body>
+</html>
