@@ -3,184 +3,241 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>付款未預約動態 Dashboard</title>
+  <title>近六個月｜已付款客戶動態</title>
   <style>
-    body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding:22px}
-    h1{margin:0 0 6px}
-    .sub{color:#555;margin:0 0 14px}
-    .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
-    .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px}
-    .k{font-size:12px;color:#666}
-    .v{font-size:28px;font-weight:800;margin-top:4px}
-    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
-    .tab{border:1px solid #111;border-radius:999px;padding:8px 12px;cursor:pointer;background:#fff}
-    .tab.active{background:#111;color:#fff}
-    table{width:100%;border-collapse:collapse;margin-top:10px}
-    th,td{border-bottom:1px solid #eee;padding:8px;text-align:left;font-size:14px}
-    th{font-size:12px;color:#666}
-    .meta{color:#666;font-size:12px;margin-top:10px}
-    @media (max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+    :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    body{margin:0;background:#fff;color:#111}
+    .wrap{max-width:1200px;margin:0 auto;padding:28px 18px 60px}
+    h1{margin:0 0 6px;font-size:38px;letter-spacing:.5px}
+    .sub{color:#666;margin:0 0 18px}
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:16px 0 14px}
+    .card{border:1px solid #e6e6e6;border-radius:12px;padding:14px 16px}
+    .card .t{color:#666;font-size:14px;margin-bottom:10px}
+    .card .v{font-size:40px;font-weight:800;line-height:1}
+    .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}
+    .btn{border:1px solid #111;background:#fff;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .btn.primary{background:#111;color:#fff}
+    .btn.ghost{border-color:#ddd;color:#111}
+    .meta{color:#666;font-size:14px;margin:10px 0 12px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border-bottom:1px solid #eee;padding:10px 8px;text-align:left;font-size:14px;vertical-align:top}
+    th{color:#666;font-weight:700}
+    .err{margin-top:14px;border:1px solid #ffd1d1;background:#fff3f3;color:#b00020;padding:12px 14px;border-radius:12px;font-weight:800;white-space:pre-wrap}
+    .ok{color:#0a7a00;font-weight:800}
+    @media (max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:520px){.cards{grid-template-columns:1fr} h1{font-size:30px}}
   </style>
 </head>
 <body>
-  <h1>近六個月｜已付款客戶動態</h1>
-  <div class="sub">加總 2025 + 2026 兩份資料庫｜狀態：未預約／未聯繫／有改期</div>
+  <div class="wrap">
+    <h1>近六個月｜已付款客戶動態</h1>
+    <p class="sub">加總 2025 + 2026 兩份資料庫｜狀態：未預約 / 未聯繫 / 有改期</p>
 
-  <div class="grid">
-    <div class="card"><div class="k">已付款總數</div><div class="v" id="paidTotal">-</div></div>
-    <div class="card"><div class="k">已付款未預約</div><div class="v" id="paidNotBooked">-</div></div>
-    <div class="card"><div class="k">已付款未聯繫</div><div class="v" id="paidNotContacted">-</div></div>
-    <div class="card"><div class="k">已付款有改期</div><div class="v" id="paidRescheduled">-</div></div>
+    <div class="cards">
+      <div class="card"><div class="t">已付款總數</div><div class="v" id="kpiPaidTotal">-</div></div>
+      <div class="card"><div class="t">已付款未預約</div><div class="v" id="kpiNotBooked">-</div></div>
+      <div class="card"><div class="t">已付款未聯繫</div><div class="v" id="kpiNotContacted">-</div></div>
+      <div class="card"><div class="t">已付款有改期</div><div class="v" id="kpiRescheduled">-</div></div>
+    </div>
+
+    <div class="bar">
+      <button class="btn primary" data-status="not_booked">未預約</button>
+      <button class="btn" data-status="not_contacted">未聯繫</button>
+      <button class="btn" data-status="rescheduled">有改期</button>
+      <button class="btn ghost" data-status="all_paid">全部已付款</button>
+      <button class="btn ghost" id="btnRefresh">重新整理</button>
+    </div>
+
+    <div class="meta" id="meta">狀態：-｜筆數：-｜更新：-</div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:90px">資料庫</th>
+          <th style="width:140px">日期</th>
+          <th style="width:160px">預約日期</th>
+          <th>改期紀錄</th>
+          <th>對帳紀錄</th>
+          <th style="width:140px">狀態</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <div id="err" class="err" style="display:none"></div>
   </div>
-
-  <div class="tabs">
-    <button class="tab active" data-status="not_booked">未預約</button>
-    <button class="tab" data-status="not_contacted">未聯繫</button>
-    <button class="tab" data-status="rescheduled">有改期</button>
-    <button class="tab" data-status="all_paid">全部已付款</button>
-    <button class="tab" id="refreshBtn">重新整理</button>
-  </div>
-
-  <div class="meta" id="meta">載入中…</div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>資料庫</th>
-        <th>日期</th>
-        <th>預約日期</th>
-        <th>改期紀錄</th>
-        <th>對帳紀錄</th>
-        <th>狀態</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
 
 <script>
-  const CONFIG_URL = "./config.json";
-
-  function set(id, v){ document.getElementById(id).textContent = v; }
-
-  // JSONP（不會 CORS）
-  function jsonp(url, params) {
+  // ---------- JSONP helper (no CORS needed) ----------
+  function jsonp(url) {
     return new Promise((resolve, reject) => {
       const cb = "cb_" + Math.random().toString(36).slice(2);
-      const qs = new URLSearchParams({ ...params, callback: cb }).toString();
-      const s = document.createElement("script");
-      const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, 12000);
+      const sep = url.includes("?") ? "&" : "?";
+      const src = url + sep + "callback=" + cb + "&_ts=" + Date.now();
+
+      const script = document.createElement("script");
+      script.src = src;
+
+      window[cb] = (data) => {
+        cleanup();
+        resolve(data);
+      };
+
+      script.onerror = () => {
+        cleanup();
+        reject(new Error("JSONP load failed: " + url));
+      };
 
       function cleanup() {
-        clearTimeout(timer);
-        delete window[cb];
-        s.remove();
+        try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+        if (script.parentNode) script.parentNode.removeChild(script);
       }
 
-      window[cb] = (data) => { cleanup(); resolve(data); };
-      s.onerror = () => { cleanup(); reject(new Error("load error")); };
-      s.src = url + (url.includes("?") ? "&" : "?") + qs;
-      document.body.appendChild(s);
+      document.body.appendChild(script);
+      setTimeout(() => {
+        cleanup();
+        reject(new Error("JSONP timeout: " + url));
+      }, 15000);
     });
   }
 
-  async function loadConfig(){
-    const res = await fetch(CONFIG_URL, { cache: "no-store" });
-    if(!res.ok) throw new Error("config.json 讀不到");
-    return res.json();
+  async function loadConfig() {
+    // cache busting
+    const res = await fetch("config.json?_ts=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("讀不到 config.json（請確認放在 index.html 同層，且 GitHub Pages 已部署）");
+    const cfg = await res.json();
+
+    // 相容你以前的 key
+    const db2025 = cfg.db2025 || cfg.scriptUrl1 || cfg.url2025 || cfg.s2025;
+    const db2026 = cfg.db2026 || cfg.scriptUrl2 || cfg.url2026 || cfg.s2026;
+
+    if (!db2025 || !db2026) {
+      throw new Error("config.json 缺少 db2025/db2026（或 scriptUrl1/scriptUrl2）");
+    }
+    return { db2025, db2026 };
   }
 
-  function renderRows(rows){
-    const tb = document.getElementById("tbody");
-    tb.innerHTML = rows.map(r => `
-      <tr>
-        <td>${esc(r._db)}</td>
-        <td>${esc(r["日期"] || "")}</td>
-        <td>${esc(r["預約日期"] || "")}</td>
-        <td>${esc(r["改期紀錄"] || "")}</td>
-        <td>${esc(r["對帳紀錄"] || "")}</td>
-        <td>${esc(r["狀態"] || "")}</td>
-      </tr>
-    `).join("");
+  function setErr(msg) {
+    const el = document.getElementById("err");
+    el.style.display = "block";
+    el.textContent = "❌ 錯誤：\n" + msg;
+  }
+  function clearErr() {
+    const el = document.getElementById("err");
+    el.style.display = "none";
+    el.textContent = "";
   }
 
-  function esc(s){
-    return String(s ?? "").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[m]));
-  }
-
-  let CFG = null;
-  let CURRENT_STATUS = "not_booked";
-
-  async function refreshAll(){
-    if(!CFG) CFG = await loadConfig();
-
-    const urls = [
-      { db:"2025", url: CFG.db2025 },
-      { db:"2026", url: CFG.db2026 }
-    ];
-
-    // KPI
-    const sums = { paidTotal:0, paidNotBooked:0, paidNotContacted:0, paidRescheduled:0 };
-    const summaries = await Promise.all(urls.map(x => jsonp(x.url, { action:"summary" }).catch(() => null)));
-
-    summaries.forEach(s => {
-      if(!s || !s.ok) return;
-      sums.paidTotal += s.paidTotal || 0;
-      sums.paidNotBooked += s.paidNotBooked || 0;
-      sums.paidNotContacted += s.paidNotContacted || 0;
-      sums.paidRescheduled += s.paidRescheduled || 0;
+  function setActive(status) {
+    document.querySelectorAll(".bar .btn").forEach(b => {
+      if (b.dataset && b.dataset.status) b.classList.toggle("primary", b.dataset.status === status);
     });
-
-    set("paidTotal", sums.paidTotal);
-    set("paidNotBooked", sums.paidNotBooked);
-    set("paidNotContacted", sums.paidNotContacted);
-    set("paidRescheduled", sums.paidRescheduled);
-
-    await refreshList(CURRENT_STATUS);
   }
 
-  async function refreshList(status){
-    if(!CFG) CFG = await loadConfig();
-    CURRENT_STATUS = status;
-
-    const urls = [
-      { db:"2025", url: CFG.db2025 },
-      { db:"2026", url: CFG.db2026 }
-    ];
-
-    const lists = await Promise.all(urls.map(x =>
-      jsonp(x.url, { action:"list", status }).then(d => ({db:x.db, d})).catch(() => ({db:x.db, d:null}))
-    ));
-
-    let rows = [];
-    lists.forEach(x => {
-      if(!x.d || !x.d.ok) return;
-      (x.d.items || []).forEach(it => rows.push({ _db: x.db, ...it }));
-    });
-
-    // 讓最新日期在前（字串 yyyy/MM/dd 可直接比）
-    rows.sort((a,b) => String(b["日期"]||"").localeCompare(String(a["日期"]||"")));
-
-    renderRows(rows);
-    document.getElementById("meta").textContent =
-      `狀態：${status}｜筆數：${rows.length}｜更新：${new Date().toLocaleString()}`;
+  function renderTable(items) {
+    const tbody = document.getElementById("tbody");
+    tbody.innerHTML = "";
+    for (const it of items) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(it.__db || "")}</td>
+        <td>${escapeHtml(it["日期"] || "")}</td>
+        <td>${escapeHtml(it["預約日期"] || "")}</td>
+        <td>${escapeHtml(it["改期紀錄"] || "")}</td>
+        <td>${escapeHtml(it["對帳紀錄"] || "")}</td>
+        <td>${escapeHtml(it["狀態"] || "")}</td>
+      `;
+      tbody.appendChild(tr);
+    }
   }
 
-  // Tabs
-  document.querySelectorAll(".tab[data-status]").forEach(btn => {
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  function fmtLocal(iso) {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleString("zh-TW", { hour12:false });
+  }
+
+  async function loadSummary(cfg) {
+    const u2025 = cfg.db2025 + "?action=summary";
+    const u2026 = cfg.db2026 + "?action=summary";
+    const [a, b] = await Promise.all([jsonp(u2025), jsonp(u2026)]);
+
+    if (!a.ok) throw new Error("2025 summary 回傳非 ok：" + JSON.stringify(a));
+    if (!b.ok) throw new Error("2026 summary 回傳非 ok：" + JSON.stringify(b));
+
+    const paidTotal = (a.paidTotal||0) + (b.paidTotal||0);
+    const notBooked = (a.paidNotBooked||0) + (b.paidNotBooked||0);
+    const notContacted = (a.paidNotContacted||0) + (b.paidNotContacted||0);
+    const rescheduled = (a.paidRescheduled||0) + (b.paidRescheduled||0);
+
+    document.getElementById("kpiPaidTotal").textContent = paidTotal;
+    document.getElementById("kpiNotBooked").textContent = notBooked;
+    document.getElementById("kpiNotContacted").textContent = notContacted;
+    document.getElementById("kpiRescheduled").textContent = rescheduled;
+
+    // 顯示最新更新時間（取較晚者）
+    const latest = (new Date(a.updatedAt) > new Date(b.updatedAt)) ? a.updatedAt : b.updatedAt;
+    return { latest };
+  }
+
+  async function loadList(cfg, status) {
+    const u2025 = cfg.db2025 + "?action=list&status=" + encodeURIComponent(status);
+    const u2026 = cfg.db2026 + "?action=list&status=" + encodeURIComponent(status);
+    const [a, b] = await Promise.all([jsonp(u2025), jsonp(u2026)]);
+
+    if (!a.ok) throw new Error("2025 list 回傳非 ok：" + JSON.stringify(a));
+    if (!b.ok) throw new Error("2026 list 回傳非 ok：" + JSON.stringify(b));
+
+    const items = []
+      .concat((a.items||[]).map(x => ({...x, __db:"2025"})))
+      .concat((b.items||[]).map(x => ({...x, __db:"2026"})));
+
+    return items;
+  }
+
+  async function refreshAll(status) {
+    clearErr();
+    const meta = document.getElementById("meta");
+    meta.textContent = "讀取中…";
+
+    const cfg = await loadConfig();
+    const sum = await loadSummary(cfg);
+    const items = await loadList(cfg, status);
+
+    meta.textContent = `狀態：${status}｜筆數：${items.length}｜更新：${fmtLocal(sum.latest)}`;
+    renderTable(items);
+  }
+
+  // ---------- init ----------
+  let currentStatus = "not_booked";
+
+  document.querySelectorAll(".bar .btn").forEach(btn => {
+    if (!btn.dataset || !btn.dataset.status) return;
     btn.addEventListener("click", async () => {
-      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-      btn.classList.add("active");
-      await refreshList(btn.dataset.status);
+      currentStatus = btn.dataset.status;
+      setActive(currentStatus);
+      try { await refreshAll(currentStatus); }
+      catch (e) { setErr(e.message || String(e)); }
     });
   });
 
-  document.getElementById("refreshBtn").addEventListener("click", refreshAll);
+  document.getElementById("btnRefresh").addEventListener("click", async () => {
+    try { await refreshAll(currentStatus); }
+    catch (e) { setErr(e.message || String(e)); }
+  });
 
-  // 自動更新（每 3 分鐘）
-  refreshAll();
-  setInterval(refreshAll, 3 * 60 * 1000);
+  (async () => {
+    setActive(currentStatus);
+    try { await refreshAll(currentStatus); }
+    catch (e) { setErr(e.message || String(e)); }
+  })();
 </script>
 </body>
 </html>
