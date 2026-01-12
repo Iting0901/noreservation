@@ -8,5 +8,30 @@
   <body>
     <h1>GitHub Pages OK</h1>
     <p>config.json should be here: <a href="./config.json">config.json</a></p>
+<script>
+  const CONFIG_URL = "https://iting0901.github.io/noreservation/config.json";
+
+  async function loadConfig() {
+    const res = await fetch(CONFIG_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("config.json 讀不到：" + res.status);
+    return await res.json();
+  }
+
+  async function test() {
+    const cfg = await loadConfig();
+    console.log("config:", cfg);
+
+    const r1 = await fetch(cfg.scriptUrl1);
+    console.log("GAS1:", await r1.text());
+
+    const r2 = await fetch(cfg.scriptUrl2);
+    console.log("GAS2:", await r2.text());
+  }
+
+  test().catch(err => {
+    console.error(err);
+    alert(err.message);
+  });
+</script>
   </body>
 </html>
