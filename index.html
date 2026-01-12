@@ -33,5 +33,33 @@
     alert(err.message);
   });
 </script>
+ <script>
+  const CONFIG_URL = "https://iting0901.github.io/noreservation/config.json";
+
+  async function loadConfig() {
+    const res = await fetch(CONFIG_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("config.json 讀不到：" + res.status);
+    return await res.json();
+  }
+
+  async function test() {
+    // 讀 config
+    const cfg = await loadConfig();
+    console.log("config:", cfg);
+
+    // 測試 GAS 1
+    const r1 = await fetch(cfg.scriptUrl1);
+    console.log("GAS1:", await r1.text());
+
+    // 測試 GAS 2
+    const r2 = await fetch(cfg.scriptUrl2);
+    console.log("GAS2:", await r2.text());
+  }
+
+  test().catch(err => {
+    console.error(err);
+    alert("錯誤：" + err.message);
+  });
+</script>
   </body>
 </html>
