@@ -1,79 +1,50 @@
-<!doctype html>
-<html lang="zh-Hant">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>noreservation</title>
+<script>
+  const CONFIG_URL = "https://iting0901.github.io/noreservation/config.json";
+  const output = document.getElementById("output");
 
-    <style>
-      body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          sans-serif;
-        padding: 40px;
-      }
-      h1 {
-        margin-bottom: 8px;
-      }
-      pre {
-        background: #f6f8fa;
-        padding: 16px;
-        border-radius: 8px;
-        margin-top: 16px;
-        white-space: pre-wrap;
-      }
-    </style>
-  </head>
+  function log(msg) {
+    console.log(msg);
+    output.textContent += "\n" + msg;
+  }
 
-  <body>
-    <h1>noreservation</h1>
-    <p>1on1 no reservation dashboard</p>
+  async function loadConfig() {
+    const res = await fetch(CONFIG_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("config.json 讀不到：" + res.status);
+    return await res.json();
+  }
 
-    <p>
-      config.json：
-      <a href="./config.json" target="_blank">開啟</a>
-    </p>
+  function extractJsonFromHtml(htmlText) {
+    const match = htmlText.match(/<pre id="payload">([\s\S]*?)<\/pre>/);
+    if (!match) throw new Error("GAS 回傳格式不對（找不到 payload）");
+    return JSON.parse(match[1]);
+  }
 
-    <h2>Console 測試結果</h2>
-    <pre id="output">loading...</pre>
+  async function callGas(url) {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("GAS 讀不到：" + res.status);
+    const htmlText = await res.text();
+    return extractJsonFromHtml(htmlText);
+  }
 
-    <script>
-      const CONFIG_URL =
-        "https://iting0901.github.io/noreservation/config.json";
+  async function main() {
+    log("開始讀取 config.json ...");
+    const cfg = await loadConfig();
+    log("config OK");
 
-      const output = document.getElementById("output");
+    log("呼叫 GAS 1...");
+    const gas1 = await callGas(cfg.scriptUrl1);
+    log("GAS 1：" + JSON.stringify(gas1));
 
-      function log(msg) {
-        console.log(msg);
-        output.textContent += "\n" + msg;
-      }
+    log("呼叫 GAS 2...");
+    const gas2 = await callGas(cfg.scriptUrl2);
+    log("GAS 2：" + JSON.stringify(gas2));
 
-      async function loadConfig() {
-        const res = await fetch(CONFIG_URL, { cache: "no-store" });
-        if (!res.ok) throw new Error("config.json 讀不到：" + res.status);
-        return await res.json();
-      }
+    log("全部完成 ✅");
+  }
 
-      async function main() {
-        log("開始讀取 config.json ...");
-
-        const cfg = await loadConfig();
-        log("config OK");
-
-        log("呼叫 GAS 1...");
-        const r1 = await fetch(cfg.scriptUrl1);
-        log("GAS 1 回傳：" + (await r1.text()));
-
-        log("呼叫 GAS 2...");
-        const r2 = await fetch(cfg.scriptUrl2);
-        log("GAS 2 回傳：" + (await r2.text()));
-
-        log("全部完成 ✅");
-      }
-
-      main().catch(err => {
-        console.error(err);
-        output.textContent = "❌ 錯誤：\n" + err.message;
-      });
-    </script>
-  </body>
-</html>
+  main().catch(err => {
+    console.error(err);
+    output.textContent = "❌ 錯誤：\n" + err.message;
+    alert(err.message);
+  });
+</script>
