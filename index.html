@@ -10,7 +10,7 @@
     h1{margin:0 0 6px;font-size:32px}
     .sub{color:#666;margin-bottom:18px}
 
-    .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:16px 0 16px}
+    .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:16px 0}
     .card{background:#fff;border:1px solid #e6e6e6;border-radius:14px;padding:16px}
     .card .t{font-size:14px;color:#666;margin-bottom:8px}
     .card .v{font-size:36px;font-weight:800}
@@ -34,7 +34,7 @@
 <body>
 <div class="wrap">
   <h1>已付款客戶｜近六個月</h1>
-  <div class="sub">規則：預約日期包含「退費」=退費；包含「改期」=改期；空白=未預約</div>
+  <div class="sub">規則：預約日期「包含退費」=退費；「包含改期」=改期；空白=未預約</div>
 
   <div class="cards">
     <div class="card"><div class="t">已付款總數</div><div class="v" id="kpiPaidTotal">-</div></div>
@@ -59,7 +59,7 @@
     <thead>
       <tr>
         <th style="width:140px">日期</th>
-        <th style="width:180px">預約日期</th>
+        <th style="width:220px">預約日期</th>
         <th style="width:120px">狀態</th>
       </tr>
     </thead>
@@ -70,7 +70,6 @@
 </div>
 
 <script>
-  // ---------- JSONP ----------
   function jsonp(url){
     return new Promise((resolve,reject)=>{
       const cb="cb_"+Math.random().toString(36).slice(2);
@@ -163,7 +162,6 @@
     refresh(current).catch(e=>setErr(e.message||String(e)));
   });
 
-  // init
   setActive(current);
   refresh(current).catch(e=>setErr(e.message||String(e)));
 </script>
