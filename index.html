@@ -3,12 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>已付款客戶｜近六個月</title>
+  <title>已付款客戶｜區間總覽</title>
   <style>
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto;background:#fafafa;color:#111}
     .wrap{max-width:1200px;margin:0 auto;padding:24px}
     h1{margin:0 0 6px;font-size:32px}
-    .sub{color:#666;margin-bottom:18px}
+    .sub{color:#666;margin-bottom:10px}
+
+    .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:10px 0 14px}
+    .f{display:flex;flex-direction:column;gap:6px}
+    label{font-size:12px;color:#666}
+    input[type="date"]{padding:9px 10px;border:1px solid #ddd;border-radius:10px;background:#fff}
+    .btn{border-radius:999px;padding:10px 16px;border:1px solid #111;background:#fff;font-weight:700;cursor:pointer}
+    .btn.primary{background:#111;color:#fff}
 
     .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:16px 0}
     .card{background:#fff;border:1px solid #e6e6e6;border-radius:14px;padding:16px}
@@ -16,9 +23,6 @@
     .card .v{font-size:36px;font-weight:800}
 
     .bar{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px}
-    .btn{border-radius:999px;padding:10px 16px;border:1px solid #111;background:#fff;font-weight:700;cursor:pointer}
-    .btn.primary{background:#111;color:#fff}
-
     .meta{margin:10px 0;color:#666;font-size:14px}
 
     table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
@@ -26,15 +30,27 @@
     th{background:#fafafa;color:#666}
 
     .err{margin-top:16px;background:#fff3f3;border:1px solid #ffd1d1;color:#b00020;padding:14px;border-radius:12px;font-weight:700;white-space:pre-wrap}
-
     @media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}}
     @media(max-width:500px){.cards{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>已付款客戶｜近六個月</h1>
-  <div class="sub">規則：預約日期「包含退費」=退費；「包含改期」=改期；空白=未預約</div>
+  <h1>已付款客戶｜可自訂區間</h1>
+  <div class="sub">規則：預約日期包含「退費」=退費；包含「改期」=改期；空白=未預約</div>
+
+  <div class="filters">
+    <div class="f">
+      <label>開始日期</label>
+      <input id="start" type="date" />
+    </div>
+    <div class="f">
+      <label>結束日期</label>
+      <input id="end" type="date" />
+    </div>
+    <button class="btn primary" id="btnApply">套用區間</button>
+    <button class="btn" id="btnClear">回到近六個月</button>
+  </div>
 
   <div class="cards">
     <div class="card"><div class="t">已付款總數</div><div class="v" id="kpiPaidTotal">-</div></div>
@@ -124,15 +140,26 @@
     });
   }
 
+  // ---- range state ----
   let current="not_booked";
+  let currentStart = ""; // YYYY-MM-DD
+  let currentEnd = "";   // YYYY-MM-DD
+
+  function buildRangeQuery(){
+    const qs = [];
+    if (currentStart) qs.push("start=" + encodeURIComponent(currentStart));
+    if (currentEnd) qs.push("end=" + encodeURIComponent(currentEnd));
+    return qs.length ? "&" + qs.join("&") : "";
+  }
 
   async function refresh(status){
     clearErr();
     document.getElementById("meta").textContent="讀取中…";
 
     const api = await loadConfig();
+    const rq = buildRangeQuery();
 
-    const sum = await jsonp(api + "?action=summary");
+    const sum = await jsonp(api + "?action=summary" + rq);
     if(!sum.ok) throw new Error(sum.error || "summary failed");
 
     document.getElementById("kpiPaidTotal").textContent = sum.paidTotal ?? 0;
@@ -141,15 +168,17 @@
     document.getElementById("kpiRescheduled").textContent = sum.paidRescheduled ?? 0;
     document.getElementById("kpiBooked").textContent = sum.paidBooked ?? 0;
 
-    const list = await jsonp(api + "?action=list&status=" + encodeURIComponent(status));
+    const list = await jsonp(api + "?action=list&status=" + encodeURIComponent(status) + rq);
     if(!list.ok) throw new Error(list.error || "list failed");
 
     render(list.items || []);
-    const ts = list.updatedAt || sum.updatedAt;
+
+    const rangeText = (sum.start && sum.end) ? `${sum.start} ~ ${sum.end}` : "近六個月";
     document.getElementById("meta").textContent =
-      `狀態：${status}｜筆數：${list.count ?? (list.items||[]).length}｜更新：${new Date(ts).toLocaleString("zh-TW",{hour12:false})}`;
+      `區間：${rangeText}｜狀態：${status}｜筆數：${list.count ?? (list.items||[]).length}｜更新：${new Date(list.updatedAt).toLocaleString("zh-TW",{hour12:false})}`;
   }
 
+  // status buttons
   document.querySelectorAll(".btn[data-status]").forEach(b=>{
     b.addEventListener("click", ()=>{
       current = b.dataset.status;
@@ -158,10 +187,28 @@
     });
   });
 
+  // refresh
   document.getElementById("btnRefresh").addEventListener("click", ()=>{
     refresh(current).catch(e=>setErr(e.message||String(e)));
   });
 
+  // apply range
+  document.getElementById("btnApply").addEventListener("click", ()=>{
+    currentStart = document.getElementById("start").value || "";
+    currentEnd = document.getElementById("end").value || "";
+    refresh(current).catch(e=>setErr(e.message||String(e)));
+  });
+
+  // clear range => default last 6 months
+  document.getElementById("btnClear").addEventListener("click", ()=>{
+    currentStart = "";
+    currentEnd = "";
+    document.getElementById("start").value = "";
+    document.getElementById("end").value = "";
+    refresh(current).catch(e=>setErr(e.message||String(e)));
+  });
+
+  // init
   setActive(current);
   refresh(current).catch(e=>setErr(e.message||String(e)));
 </script>
