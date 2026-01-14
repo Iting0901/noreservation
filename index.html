@@ -8,7 +8,7 @@
     :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
     body{margin:0;background:#fff;color:#111}
     .wrap{max-width:1200px;margin:0 auto;padding:28px 18px 60px}
-    h1{margin:0 0 6px;font-size:38px;letter-spacing:.5px}
+    h1{margin:0 0 6px;font-size:34px}
     .sub{color:#666;margin:0 0 18px}
     .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:16px 0 14px}
     .card{border:1px solid #e6e6e6;border-radius:12px;padding:14px 16px}
@@ -23,15 +23,14 @@
     th,td{border-bottom:1px solid #eee;padding:10px 8px;text-align:left;font-size:14px;vertical-align:top}
     th{color:#666;font-weight:700}
     .err{margin-top:14px;border:1px solid #ffd1d1;background:#fff3f3;color:#b00020;padding:12px 14px;border-radius:12px;font-weight:800;white-space:pre-wrap}
-    .ok{color:#0a7a00;font-weight:800}
     @media (max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}}
-    @media (max-width:520px){.cards{grid-template-columns:1fr} h1{font-size:30px}}
+    @media (max-width:520px){.cards{grid-template-columns:1fr} h1{font-size:28px}}
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>近六個月｜已付款客戶動態</h1>
-    <p class="sub">加總 2025 + 2026 兩份資料庫｜狀態：未預約 / 未聯繫 / 有改期</p>
+    <p class="sub">統一資料庫單一分頁｜未預約 / 未聯繫 / 有改期</p>
 
     <div class="cards">
       <div class="card"><div class="t">已付款總數</div><div class="v" id="kpiPaidTotal">-</div></div>
@@ -53,8 +52,7 @@
     <table>
       <thead>
         <tr>
-          <th style="width:90px">資料庫</th>
-          <th style="width:140px">日期</th>
+          <th style="width:160px">日期</th>
           <th style="width:160px">預約日期</th>
           <th>改期紀錄</th>
           <th>對帳紀錄</th>
@@ -68,25 +66,16 @@
   </div>
 
 <script>
-  // ---------- JSONP helper (no CORS needed) ----------
   function jsonp(url) {
     return new Promise((resolve, reject) => {
       const cb = "cb_" + Math.random().toString(36).slice(2);
       const sep = url.includes("?") ? "&" : "?";
       const src = url + sep + "callback=" + cb + "&_ts=" + Date.now();
-
       const script = document.createElement("script");
       script.src = src;
 
-      window[cb] = (data) => {
-        cleanup();
-        resolve(data);
-      };
-
-      script.onerror = () => {
-        cleanup();
-        reject(new Error("JSONP load failed: " + url));
-      };
+      window[cb] = (data) => { cleanup(); resolve(data); };
+      script.onerror = () => { cleanup(); reject(new Error("JSONP load failed: " + url)); };
 
       function cleanup() {
         try { delete window[cb]; } catch(e) { window[cb] = undefined; }
@@ -94,149 +83,100 @@
       }
 
       document.body.appendChild(script);
-      setTimeout(() => {
-        cleanup();
-        reject(new Error("JSONP timeout: " + url));
-      }, 15000);
+      setTimeout(() => { cleanup(); reject(new Error("JSONP timeout: " + url)); }, 15000);
     });
   }
 
   async function loadConfig() {
-    // cache busting
     const res = await fetch("config.json?_ts=" + Date.now(), { cache: "no-store" });
-    if (!res.ok) throw new Error("讀不到 config.json（請確認放在 index.html 同層，且 GitHub Pages 已部署）");
+    if (!res.ok) throw new Error("讀不到 config.json（請確認放在 index.html 同層）");
     const cfg = await res.json();
-
-    // 相容你以前的 key
-    const db2025 = cfg.db2025 || cfg.scriptUrl1 || cfg.url2025 || cfg.s2025;
-    const db2026 = cfg.db2026 || cfg.scriptUrl2 || cfg.url2026 || cfg.s2026;
-
-    if (!db2025 || !db2026) {
-      throw new Error("config.json 缺少 db2025/db2026（或 scriptUrl1/scriptUrl2）");
-    }
-    return { db2025, db2026 };
+    const api = cfg.api;
+    if (!api) throw new Error("config.json 缺少 api");
+    return { api };
   }
 
-  function setErr(msg) {
-    const el = document.getElementById("err");
-    el.style.display = "block";
-    el.textContent = "❌ 錯誤：\n" + msg;
-  }
-  function clearErr() {
-    const el = document.getElementById("err");
-    el.style.display = "none";
-    el.textContent = "";
-  }
+  function setErr(msg){ const el=document.getElementById("err"); el.style.display="block"; el.textContent="❌ 錯誤：\n"+msg; }
+  function clearErr(){ const el=document.getElementById("err"); el.style.display="none"; el.textContent=""; }
 
-  function setActive(status) {
-    document.querySelectorAll(".bar .btn").forEach(b => {
-      if (b.dataset && b.dataset.status) b.classList.toggle("primary", b.dataset.status === status);
+  function setActive(status){
+    document.querySelectorAll(".bar .btn").forEach(b=>{
+      if (b.dataset && b.dataset.status) b.classList.toggle("primary", b.dataset.status===status);
     });
   }
 
-  function renderTable(items) {
-    const tbody = document.getElementById("tbody");
-    tbody.innerHTML = "";
-    for (const it of items) {
-      const tr = document.createElement("tr");
+  function renderTable(items){
+    const tbody=document.getElementById("tbody");
+    tbody.innerHTML="";
+    for(const it of items){
+      const tr=document.createElement("tr");
       tr.innerHTML = `
-        <td>${escapeHtml(it.__db || "")}</td>
-        <td>${escapeHtml(it["日期"] || "")}</td>
-        <td>${escapeHtml(it["預約日期"] || "")}</td>
-        <td>${escapeHtml(it["改期紀錄"] || "")}</td>
-        <td>${escapeHtml(it["對帳紀錄"] || "")}</td>
-        <td>${escapeHtml(it["狀態"] || "")}</td>
+        <td>${esc(it["日期"]||"")}</td>
+        <td>${esc(it["預約日期"]||"")}</td>
+        <td>${esc(it["改期紀錄"]||"")}</td>
+        <td>${esc(it["對帳紀錄"]||"")}</td>
+        <td>${esc(it["狀態"]||"")}</td>
       `;
       tbody.appendChild(tr);
     }
   }
-
-  function escapeHtml(s) {
-    return String(s ?? "").replace(/[&<>"']/g, c => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-    }[c]));
+  function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+  function fmtLocal(iso){
+    if(!iso) return "-";
+    const d=new Date(iso);
+    if(isNaN(d)) return iso;
+    return d.toLocaleString("zh-TW",{hour12:false});
   }
 
-  function fmtLocal(iso) {
-    if (!iso) return "-";
-    const d = new Date(iso);
-    if (isNaN(d)) return iso;
-    return d.toLocaleString("zh-TW", { hour12:false });
+  async function loadSummary(api){
+    const u = api + "?action=summary";
+    const a = await jsonp(u);
+    if(!a.ok) throw new Error("summary 回傳非 ok：" + JSON.stringify(a));
+    document.getElementById("kpiPaidTotal").textContent = a.paidTotal ?? 0;
+    document.getElementById("kpiNotBooked").textContent = a.paidNotBooked ?? 0;
+    document.getElementById("kpiNotContacted").textContent = a.paidNotContacted ?? 0;
+    document.getElementById("kpiRescheduled").textContent = a.paidRescheduled ?? 0;
+    return a.updatedAt;
   }
 
-  async function loadSummary(cfg) {
-    const u2025 = cfg.db2025 + "?action=summary";
-    const u2026 = cfg.db2026 + "?action=summary";
-    const [a, b] = await Promise.all([jsonp(u2025), jsonp(u2026)]);
-
-    if (!a.ok) throw new Error("2025 summary 回傳非 ok：" + JSON.stringify(a));
-    if (!b.ok) throw new Error("2026 summary 回傳非 ok：" + JSON.stringify(b));
-
-    const paidTotal = (a.paidTotal||0) + (b.paidTotal||0);
-    const notBooked = (a.paidNotBooked||0) + (b.paidNotBooked||0);
-    const notContacted = (a.paidNotContacted||0) + (b.paidNotContacted||0);
-    const rescheduled = (a.paidRescheduled||0) + (b.paidRescheduled||0);
-
-    document.getElementById("kpiPaidTotal").textContent = paidTotal;
-    document.getElementById("kpiNotBooked").textContent = notBooked;
-    document.getElementById("kpiNotContacted").textContent = notContacted;
-    document.getElementById("kpiRescheduled").textContent = rescheduled;
-
-    // 顯示最新更新時間（取較晚者）
-    const latest = (new Date(a.updatedAt) > new Date(b.updatedAt)) ? a.updatedAt : b.updatedAt;
-    return { latest };
+  async function loadList(api,status){
+    const u = api + "?action=list&status=" + encodeURIComponent(status);
+    const a = await jsonp(u);
+    if(!a.ok) throw new Error("list 回傳非 ok：" + JSON.stringify(a));
+    return a.items || [];
   }
 
-  async function loadList(cfg, status) {
-    const u2025 = cfg.db2025 + "?action=list&status=" + encodeURIComponent(status);
-    const u2026 = cfg.db2026 + "?action=list&status=" + encodeURIComponent(status);
-    const [a, b] = await Promise.all([jsonp(u2025), jsonp(u2026)]);
-
-    if (!a.ok) throw new Error("2025 list 回傳非 ok：" + JSON.stringify(a));
-    if (!b.ok) throw new Error("2026 list 回傳非 ok：" + JSON.stringify(b));
-
-    const items = []
-      .concat((a.items||[]).map(x => ({...x, __db:"2025"})))
-      .concat((b.items||[]).map(x => ({...x, __db:"2026"})));
-
-    return items;
-  }
-
-  async function refreshAll(status) {
+  async function refreshAll(status){
     clearErr();
-    const meta = document.getElementById("meta");
-    meta.textContent = "讀取中…";
+    const meta=document.getElementById("meta");
+    meta.textContent="讀取中…";
 
-    const cfg = await loadConfig();
-    const sum = await loadSummary(cfg);
-    const items = await loadList(cfg, status);
+    const cfg=await loadConfig();
+    const updatedAt=await loadSummary(cfg.api);
+    const items=await loadList(cfg.api,status);
 
-    meta.textContent = `狀態：${status}｜筆數：${items.length}｜更新：${fmtLocal(sum.latest)}`;
+    meta.textContent = `狀態：${status}｜筆數：${items.length}｜更新：${fmtLocal(updatedAt)}`;
     renderTable(items);
   }
 
-  // ---------- init ----------
-  let currentStatus = "not_booked";
+  let currentStatus="not_booked";
 
-  document.querySelectorAll(".bar .btn").forEach(btn => {
-    if (!btn.dataset || !btn.dataset.status) return;
-    btn.addEventListener("click", async () => {
-      currentStatus = btn.dataset.status;
+  document.querySelectorAll(".bar .btn").forEach(btn=>{
+    if(!btn.dataset || !btn.dataset.status) return;
+    btn.addEventListener("click", async ()=>{
+      currentStatus=btn.dataset.status;
       setActive(currentStatus);
-      try { await refreshAll(currentStatus); }
-      catch (e) { setErr(e.message || String(e)); }
+      try{ await refreshAll(currentStatus); }catch(e){ setErr(e.message||String(e)); }
     });
   });
 
-  document.getElementById("btnRefresh").addEventListener("click", async () => {
-    try { await refreshAll(currentStatus); }
-    catch (e) { setErr(e.message || String(e)); }
+  document.getElementById("btnRefresh").addEventListener("click", async ()=>{
+    try{ await refreshAll(currentStatus); }catch(e){ setErr(e.message||String(e)); }
   });
 
-  (async () => {
+  (async ()=>{
     setActive(currentStatus);
-    try { await refreshAll(currentStatus); }
-    catch (e) { setErr(e.message || String(e)); }
+    try{ await refreshAll(currentStatus); }catch(e){ setErr(e.message||String(e)); }
   })();
 </script>
 </body>
