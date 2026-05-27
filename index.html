@@ -1,8 +1,8 @@
-<!doctype html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+<!DOCTYPE html>
+<!-- saved from url=(0043)file:///Users/i-ting/Downloads/index_1.html -->
+<html lang="zh-Hant"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>已付款客戶｜區間總覽</title>
   <style>
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto;background:#fafafa;color:#111}
@@ -42,11 +42,11 @@
   <div class="filters">
     <div class="f">
       <label>開始日期</label>
-      <input id="start" type="date" />
+      <input id="start" type="date">
     </div>
     <div class="f">
       <label>結束日期</label>
-      <input id="end" type="date" />
+      <input id="end" type="date">
     </div>
     <button class="btn primary" id="btnApply">套用區間</button>
     <button class="btn" id="btnClear">回到近六個月</button>
@@ -82,7 +82,7 @@
     <tbody id="tbody"></tbody>
   </table>
 
-  <div id="err" class="err" style="display:none"></div>
+  <div id="err" class="err" style="display: block;">❌ Failed to fetch</div>
 </div>
 
 <script>
@@ -104,7 +104,9 @@
     if(!res.ok) throw new Error("讀不到 config.json（請確認與 index.html 同層）");
     const cfg = await res.json();
     if(!cfg.api) throw new Error("config.json 缺少 api");
-    return cfg.api;
+    // 修正 Chrome 多帳號時自動插入 /u/N/ 的問題
+    let api = cfg.api.replace(/\/macros\/u\/\d+\/s\//, "/macros/s/");
+    return api;
   }
 
   function esc(s){
@@ -212,5 +214,6 @@
   setActive(current);
   refresh(current).catch(e=>setErr(e.message||String(e)));
 </script>
-</body>
-</html>
+
+
+</body></html>
