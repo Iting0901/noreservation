@@ -31,4 +31,187 @@
     th,td{padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:left}
     th{background:#fafafa;color:#666}
     .err{margin-top:16px;background:#fff3f3;border:1px solid #ffd1d1;color:#b00020;padding:14px;border-radius:12px;font-weight:700;white-space:pre-wrap}
-    @media(max-width:900px){.cards{g
+    @media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:500px){.cards{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>已付款客戶｜可自訂區間</h1>
+  <div class="sub">規則：改期紀錄有 v=改期；預約日期含「退費」=退費；空白=未預約</div>
+
+  <div class="filters">
+    <div class="f">
+      <label>開始日期</label>
+      <input id="start" type="date" />
+    </div>
+    <div class="f">
+      <label>結束日期</label>
+      <input id="end" type="date" />
+    </div>
+    <button class="btn primary" id="btnApply">套用區間</button>
+    <button class="btn" id="btnClear">回到近六個月</button>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="t">已付款總數</div><div class="v" id="kpiPaidTotal">-</div></div>
+    <div class="card"><div class="t">未預約</div><div class="v" id="kpiNotBooked">-</div></div>
+    <div class="card"><div class="t">退費</div><div class="v" id="kpiRefund">-</div></div>
+    <div class="card"><div class="t">改期</div><div class="v" id="kpiRescheduled">-</div></div>
+    <div class="card"><div class="t">已預約</div><div class="v" id="kpiBooked">-</div></div>
+    <div class="card intl"><div class="t">國際美金（全部）</div><div class="v" id="kpiIntl">-</div></div>
+    <div class="card intlnb"><div class="t">國際美金未預約</div><div class="v" id="kpiIntlNotBooked">-</div></div>
+  </div>
+
+  <div class="bar">
+    <button class="btn primary" data-status="not_booked">未預約</button>
+    <button class="btn" data-status="refund">退費</button>
+    <button class="btn" data-status="rescheduled">改期</button>
+    <button class="btn" data-status="booked">已預約</button>
+    <button class="btn" data-status="paid_all">全部</button>
+    <button class="btn intl" data-status="intl_not_booked">國際美金未預約</button>
+    <button class="btn intl" data-status="intl_all">國際美金全部</button>
+    <button class="btn" id="btnRefresh">重新整理</button>
+  </div>
+
+  <div class="meta" id="meta">讀取中…</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:120px">日期</th>
+        <th style="width:160px">客戶本名</th>
+        <th style="width:200px">預約日期</th>
+        <th style="width:100px">狀態</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div id="err" class="err" style="display:none"></div>
+</div>
+
+<script>
+  async function apiFetch(url) {
+    url = url.replace(/\/macros\/u\/\d+\/s\//, "/macros/s/");
+    const res = await fetch(url, { redirect: "follow" });
+    if (!res.ok) throw new Error("HTTP " + res.status + ": " + url);
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch(e) {
+      throw new Error("API 回傳格式錯誤：" + text.slice(0, 200));
+    }
+  }
+
+  async function loadConfig() {
+    const res = await fetch("config.json?_ts=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("讀不到 config.json");
+    const cfg = await res.json();
+    if (!cfg.api) throw new Error("config.json 缺少 api");
+    return cfg.api.replace(/\/macros\/u\/\d+\/s\//, "/macros/s/");
+  }
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+  }
+  function setErr(msg) {
+    const e = document.getElementById("err");
+    e.style.display = "block";
+    e.textContent = "❌ " + msg;
+  }
+  function clearErr() {
+    const e = document.getElementById("err");
+    e.style.display = "none";
+    e.textContent = "";
+  }
+  function setActive(status) {
+    document.querySelectorAll(".btn[data-status]").forEach(b => {
+      b.classList.toggle("primary", b.dataset.status === status);
+    });
+  }
+  function render(items) {
+    const tbody = document.getElementById("tbody");
+    tbody.innerHTML = "";
+    items.forEach(it => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${esc(it["日期"] || "")}</td>
+        <td>${esc(it["客戶本名"] || "")}</td>
+        <td>${esc(it["預約日期"] || "")}</td>
+        <td>${esc(it["狀態"] || "")}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  let current = "not_booked";
+  let currentStart = "";
+  let currentEnd = "";
+
+  function buildRangeQuery() {
+    const qs = [];
+    if (currentStart) qs.push("start=" + encodeURIComponent(currentStart));
+    if (currentEnd) qs.push("end=" + encodeURIComponent(currentEnd));
+    return qs.length ? "&" + qs.join("&") : "";
+  }
+
+  async function refresh(status) {
+    clearErr();
+    document.getElementById("meta").textContent = "讀取中…";
+
+    const api = await loadConfig();
+    const rq = buildRangeQuery();
+
+    const sum = await apiFetch(api + "?action=summary" + rq);
+    if (!sum.ok) throw new Error(sum.error || "summary failed");
+
+    document.getElementById("kpiPaidTotal").textContent = sum.paidTotal ?? 0;
+    document.getElementById("kpiNotBooked").textContent = sum.paidNotBooked ?? 0;
+    document.getElementById("kpiRefund").textContent = sum.paidRefund ?? 0;
+    document.getElementById("kpiRescheduled").textContent = sum.paidRescheduled ?? 0;
+    document.getElementById("kpiBooked").textContent = sum.paidBooked ?? 0;
+    document.getElementById("kpiIntl").textContent = sum.intlChecked ?? 0;
+    document.getElementById("kpiIntlNotBooked").textContent = sum.intlNotBooked ?? 0;
+
+    const list = await apiFetch(api + "?action=list&status=" + encodeURIComponent(status) + rq);
+    if (!list.ok) throw new Error(list.error || "list failed");
+
+    render(list.items || []);
+
+    const rangeText = (sum.start && sum.end) ? `${sum.start} ~ ${sum.end}` : "近六個月";
+    document.getElementById("meta").textContent =
+      `區間：${rangeText}｜狀態：${status}｜筆數：${list.count ?? (list.items || []).length}｜更新：${new Date(list.updatedAt).toLocaleString("zh-TW", {hour12: false})}`;
+  }
+
+  document.querySelectorAll(".btn[data-status]").forEach(b => {
+    b.addEventListener("click", () => {
+      current = b.dataset.status;
+      setActive(current);
+      refresh(current).catch(e => setErr(e.message || String(e)));
+    });
+  });
+
+  document.getElementById("btnRefresh").addEventListener("click", () => {
+    refresh(current).catch(e => setErr(e.message || String(e)));
+  });
+
+  document.getElementById("btnApply").addEventListener("click", () => {
+    currentStart = document.getElementById("start").value || "";
+    currentEnd = document.getElementById("end").value || "";
+    refresh(current).catch(e => setErr(e.message || String(e)));
+  });
+
+  document.getElementById("btnClear").addEventListener("click", () => {
+    currentStart = "";
+    currentEnd = "";
+    document.getElementById("start").value = "";
+    document.getElementById("end").value = "";
+    refresh(current).catch(e => setErr(e.message || String(e)));
+  });
+
+  setActive(current);
+  refresh(current).catch(e => setErr(e.message || String(e)));
+</script>
+</body>
+</html>
