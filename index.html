@@ -1,217 +1,299 @@
-<!doctype html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>已付款客戶｜區間總覽</title>
-  <style>
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto;background:#fafafa;color:#111}
-    .wrap{max-width:1200px;margin:0 auto;padding:24px}
-    h1{margin:0 0 6px;font-size:32px}
-    .sub{color:#666;margin-bottom:10px}
-    .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:10px 0 14px}
-    .f{display:flex;flex-direction:column;gap:6px}
-    label{font-size:12px;color:#666}
-    input[type="date"]{padding:9px 10px;border:1px solid #ddd;border-radius:10px;background:#fff}
-    .btn{border-radius:999px;padding:10px 16px;border:1px solid #111;background:#fff;font-weight:700;cursor:pointer}
-    .btn.primary{background:#111;color:#fff}
-    .btn.intl{border-color:#0a7;color:#0a7}
-    .btn.intl.primary{background:#0a7;color:#fff;border-color:#0a7}
-    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:16px 0}
-    .card{background:#fff;border:1px solid #e6e6e6;border-radius:14px;padding:16px}
-    .card .t{font-size:14px;color:#666;margin-bottom:8px}
-    .card .v{font-size:36px;font-weight:800}
-    .card.intl{border-color:#111;background:#111;color:#fff}
-    .card.intl .t{color:#bbb}
-    .card.intlnb{border-color:#0a7;background:#e9fbf4;color:#066}
-    .card.intlnb .t{color:#0a7}
-    .bar{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px}
-    .meta{margin:10px 0;color:#666;font-size:14px}
-    table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
-    th,td{padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:left}
-    th{background:#fafafa;color:#666}
-    .err{margin-top:16px;background:#fff3f3;border:1px solid #ffd1d1;color:#b00020;padding:14px;border-radius:12px;font-weight:700;white-space:pre-wrap}
-    @media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}}
-    @media(max-width:500px){.cards{grid-template-columns:repeat(2,1fr)}}
-  </style>
-</head>
-<body>
-<div class="wrap">
-  <h1>已付款客戶｜可自訂區間</h1>
-  <div class="sub">規則：預約日期包含「退費」=退費；包含「改期」=改期；空白=未預約</div>
+const TAB_NAME = "檢測分析紀錄表V.1-2026";
 
-  <div class="filters">
-    <div class="f">
-      <label>開始日期</label>
-      <input id="start" type="date" />
-    </div>
-    <div class="f">
-      <label>結束日期</label>
-      <input id="end" type="date" />
-    </div>
-    <button class="btn primary" id="btnApply">套用區間</button>
-    <button class="btn" id="btnClear">回到近六個月</button>
-  </div>
+const HEADER_ROW_INDEX = 0;
+const HEADER_SCAN_MAX_ROWS = 6;
 
-  <div class="cards">
-    <div class="card"><div class="t">已付款總數</div><div class="v" id="kpiPaidTotal">-</div></div>
-    <div class="card"><div class="t">未預約</div><div class="v" id="kpiNotBooked">-</div></div>
-    <div class="card"><div class="t">退費</div><div class="v" id="kpiRefund">-</div></div>
-    <div class="card"><div class="t">改期</div><div class="v" id="kpiRescheduled">-</div></div>
-    <div class="card"><div class="t">已預約</div><div class="v" id="kpiBooked">-</div></div>
-    <div class="card intl"><div class="t">國際美金（全部）</div><div class="v" id="kpiIntl">-</div></div>
-    <div class="card intlnb"><div class="t">國際美金未預約</div><div class="v" id="kpiIntlNotBooked">-</div></div>
-  </div>
+const COL_DATE_CANDIDATES = ["日期", "填寫日期", "建立日期", "檢測日期", "報告日期", "時間戳記", "Timestamp"];
+const COL_NAME_CANDIDATES = ["客戶本名", "姓名", "客戶", "名字", "本名", "客戶姓名"];
+const COL_PAID_CANDIDATES = ["已付款", "已對帳", "付款", "是否已付款", "付款狀態"];
+const COL_RESCHEDULE_CANDIDATES = ["改期紀錄", "改期記錄", "改期"];
+const COL_BOOKING_CANDIDATES = ["預約日期", "預約", "預約時間", "預約日"];
+const COL_INTL_CANDIDATES = ["是否為 國際美金", "是否為國際美金", "國際美金", "是否國際美金"];
 
-  <div class="bar">
-    <button class="btn primary" data-status="not_booked">未預約</button>
-    <button class="btn" data-status="refund">退費</button>
-    <button class="btn" data-status="rescheduled">改期</button>
-    <button class="btn" data-status="booked">已預約</button>
-    <button class="btn" data-status="paid_all">全部</button>
-    <button class="btn intl" data-status="intl_not_booked">國際美金未預約</button>
-    <button class="btn intl" data-status="intl_all">國際美金全部</button>
-    <button class="btn" id="btnRefresh">重新整理</button>
-  </div>
+const REFUND_KEYWORDS = ["退費"];
 
-  <div class="meta" id="meta">讀取中…</div>
+function defaultRange_() {
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  const start = new Date(end);
+  start.setMonth(start.getMonth() - 6);
+  start.setHours(0, 0, 0, 0);
+  return { start, end, label: "last_6_months" };
+}
 
-  <table>
-    <thead>
-      <tr>
-        <th style="width:120px">日期</th>
-        <th style="width:160px">客戶本名</th>
-        <th style="width:200px">預約日期</th>
-        <th style="width:100px">狀態</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
+function doGet(e) {
+  const params = e && e.parameter ? e.parameter : {};
+  const action = String(params.action || "summary").toLowerCase();
+  const status = String(params.status || "not_booked").toLowerCase();
+  const callback = params.callback;
+  try {
+    if (action === "debug") return output_(buildDebug_(), callback);
+    const range = getRangeFromParams_(params);
+    let payload;
+    if (action === "summary") payload = buildSummary_(range);
+    else if (action === "list") payload = buildList_(status, range);
+    else payload = { ok: false, error: "Unknown action: " + action };
+    return output_(payload, callback);
+  } catch (err) {
+    return output_({ ok: false, error: String(err && err.message ? err.message : err) }, callback);
+  }
+}
 
-  <div id="err" class="err" style="display:none"></div>
-</div>
+function doOptions(e) {
+  return ContentService.createTextOutput("").setMimeType(ContentService.MimeType.TEXT);
+}
 
-<script>
-  async function apiFetch(url) {
-    url = url.replace(/\/macros\/u\/\d+\/s\//, "/macros/s/");
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) throw new Error("HTTP " + res.status + ": " + url);
-    const text = await res.text();
-    try {
-      return JSON.parse(text);
-    } catch(e) {
-      throw new Error("API 回傳格式錯誤：" + text.slice(0, 200));
+function output_(payload, callback) {
+  const json = JSON.stringify(payload);
+  if (callback) {
+    return ContentService.createTextOutput(callback + "(" + json + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}
+
+function headerResult_(rowIndex, headers) {
+  return {
+    headerRowIndex: rowIndex,
+    headers,
+    idxDate: findHeaderIndex_(headers, COL_DATE_CANDIDATES),
+    idxName: findHeaderIndex_(headers, COL_NAME_CANDIDATES),
+    idxPaid: findHeaderIndex_(headers, COL_PAID_CANDIDATES),
+    idxReschedule: findHeaderIndex_(headers, COL_RESCHEDULE_CANDIDATES),
+    idxBooking: findHeaderIndex_(headers, COL_BOOKING_CANDIDATES),
+    idxIntl: findHeaderIndex_(headers, COL_INTL_CANDIDATES)
+  };
+}
+
+function resolveHeader_(values) {
+  if (HEADER_ROW_INDEX && HEADER_ROW_INDEX >= 1) {
+    const headers = (values[HEADER_ROW_INDEX - 1] || []).map(h => cleanText_(h));
+    return headerResult_(HEADER_ROW_INDEX, headers);
+  }
+  let best = null;
+  const scanMax = Math.min(HEADER_SCAN_MAX_ROWS, values.length);
+  for (let r = 0; r < scanMax; r++) {
+    const headers = (values[r] || []).map(h => cleanText_(h));
+    const idxDate = findHeaderIndex_(headers, COL_DATE_CANDIDATES);
+    const idxPaid = findHeaderIndex_(headers, COL_PAID_CANDIDATES);
+    const idxBooking = findHeaderIndex_(headers, COL_BOOKING_CANDIDATES);
+    const score = (idxDate >= 0 ? 1 : 0) + (idxPaid >= 0 ? 1 : 0) + (idxBooking >= 0 ? 1 : 0);
+    if (!best || score > best.score) best = { row: r + 1, headers, score };
+    if (score === 3) break;
+  }
+  if (!best) return headerResult_(1, (values[0] || []).map(h => cleanText_(h)));
+  return headerResult_(best.row, best.headers);
+}
+
+function buildDebug_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const allSheets = ss.getSheets().map(s => s.getName());
+  const sh = ss.getSheetByName(TAB_NAME);
+  if (!sh) return { ok: false, error: "找不到工作表分頁(tab)", tabNameSetting: TAB_NAME, allSheets };
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  const scanRows = Math.max(Math.min(HEADER_SCAN_MAX_ROWS, lastRow), 1);
+  const allValues = sh.getRange(1, 1, scanRows, lastCol).getDisplayValues();
+  const h = resolveHeader_(allValues);
+  const preview = allValues.map((row, i) => ({ row: i + 1, cells: row.map(c => cleanText_(c)) }));
+  return {
+    ok: true, tabNameSetting: TAB_NAME, allSheets, lastRow, lastCol,
+    detectedHeaderRow: h.headerRowIndex,
+    detectedHeaders: h.headers,
+    dateColumnFoundAt: h.idxDate + 1,
+    nameColumnFoundAt: h.idxName + 1,
+    paidColumnFoundAt: h.idxPaid + 1,
+    rescheduleColumnFoundAt: h.idxReschedule + 1,
+    bookingColumnFoundAt: h.idxBooking + 1,
+    intlColumnFoundAt: h.idxIntl + 1,
+    firstRowsPreview: preview
+  };
+}
+
+function getRangeFromParams_(params) {
+  const def = defaultRange_();
+  const s = String(params.start || "").trim();
+  const e = String(params.end || "").trim();
+  if (!s && !e) return def;
+  let start = s ? parseYMD_(s) : null;
+  let end = e ? parseYMD_(e) : null;
+  if (start && !end) end = new Date();
+  if (!start && end) { start = new Date(end); start.setMonth(start.getMonth() - 6); }
+  if (!start || !end) return def;
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+  if (start > end) throw new Error("日期區間錯誤：start 不能晚於 end");
+  return { start, end, label: "custom" };
+}
+
+function parseYMD_(s) {
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return isNaN(dt) ? null : dt;
+}
+
+function ymd_(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return yyyy + "-" + mm + "-" + dd;
+}
+
+function readRowsInRange_(range) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(TAB_NAME);
+  if (!sh) throw new Error("找不到工作表分頁(tab)：" + TAB_NAME);
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 1) return [];
+  const values = sh.getRange(1, 1, lastRow, lastCol).getDisplayValues();
+  const h = resolveHeader_(values);
+  const headerRowIndex = h.headerRowIndex;
+  const idxDate = h.idxDate, idxName = h.idxName, idxPaid = h.idxPaid;
+  const idxReschedule = h.idxReschedule, idxBooking = h.idxBooking, idxIntl = h.idxIntl;
+  if (idxDate < 0) throw new Error("找不到欄位：日期。讀到的欄位是：" + h.headers.join("｜"));
+  if (idxPaid < 0) throw new Error("找不到欄位：已付款。讀到的欄位是：" + h.headers.join("｜"));
+  if (idxBooking < 0) throw new Error("找不到欄位：預約日期。讀到的欄位是：" + h.headers.join("｜"));
+  const rows = [];
+  for (let r = headerRowIndex; r < values.length; r++) {
+    const row = values[r];
+    const dateCell = row[idxDate];
+    const paidCell = row[idxPaid];
+    const bookingCell = row[idxBooking];
+    const nameCell = idxName >= 0 ? row[idxName] : "";
+    const intlCell = idxIntl >= 0 ? row[idxIntl] : "";
+    const rescheduleCell = idxReschedule >= 0 ? row[idxReschedule] : "";
+    if (isBlank_(dateCell) && isBlank_(paidCell) && isBlank_(bookingCell)) continue;
+    const dt = parseDate_(dateCell);
+    if (!dt) continue;
+    if (dt < range.start || dt > range.end) continue;
+    rows.push({
+      dateObj: dt,
+      dateText: formatDate_(dt),
+      name: cleanText_(nameCell),
+      paid: isPaid_(paidCell),
+      reschedule: isChecked_(rescheduleCell),
+      booking: bookingCell,
+      intl: isChecked_(intlCell)
+    });
+  }
+  rows.sort((a, b) => b.dateObj - a.dateObj);
+  return rows;
+}
+
+// 統一的狀態判斷（順序：改期 → 退費 → 未預約 → 已預約）
+function classify_(r) {
+  const bookingText = cleanText_(r.booking);
+  if (r.reschedule) return "改期";
+  if (bookingText && hasAny_(bookingText, REFUND_KEYWORDS)) return "退費";
+  if (!bookingText) return "未預約";
+  return "已預約";
+}
+
+function buildSummary_(range) {
+  const rows = readRowsInRange_(range);
+  let paidTotal = 0, paidNotBooked = 0, paidRefund = 0, paidRescheduled = 0, paidBooked = 0;
+  let intlChecked = 0, intlNotBooked = 0;
+  rows.forEach(r => {
+    const label = classify_(r);
+    if (r.intl) {
+      intlChecked++;
+      if (label === "未預約") intlNotBooked++;
     }
-  }
-
-  async function loadConfig() {
-    const res = await fetch("config.json?_ts=" + Date.now(), { cache: "no-store" });
-    if (!res.ok) throw new Error("讀不到 config.json");
-    const cfg = await res.json();
-    if (!cfg.api) throw new Error("config.json 缺少 api");
-    return cfg.api.replace(/\/macros\/u\/\d+\/s\//, "/macros/s/");
-  }
-
-  function esc(s) {
-    return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-  }
-  function setErr(msg) {
-    const e = document.getElementById("err");
-    e.style.display = "block";
-    e.textContent = "❌ " + msg;
-  }
-  function clearErr() {
-    const e = document.getElementById("err");
-    e.style.display = "none";
-    e.textContent = "";
-  }
-  function setActive(status) {
-    document.querySelectorAll(".btn[data-status]").forEach(b => {
-      b.classList.toggle("primary", b.dataset.status === status);
-    });
-  }
-  function render(items) {
-    const tbody = document.getElementById("tbody");
-    tbody.innerHTML = "";
-    items.forEach(it => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${esc(it["日期"] || "")}</td>
-        <td>${esc(it["客戶本名"] || "")}</td>
-        <td>${esc(it["預約日期"] || "")}</td>
-        <td>${esc(it["狀態"] || "")}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
-
-  let current = "not_booked";
-  let currentStart = "";
-  let currentEnd = "";
-
-  function buildRangeQuery() {
-    const qs = [];
-    if (currentStart) qs.push("start=" + encodeURIComponent(currentStart));
-    if (currentEnd) qs.push("end=" + encodeURIComponent(currentEnd));
-    return qs.length ? "&" + qs.join("&") : "";
-  }
-
-  async function refresh(status) {
-    clearErr();
-    document.getElementById("meta").textContent = "讀取中…";
-
-    const api = await loadConfig();
-    const rq = buildRangeQuery();
-
-    const sum = await apiFetch(api + "?action=summary" + rq);
-    if (!sum.ok) throw new Error(sum.error || "summary failed");
-
-    document.getElementById("kpiPaidTotal").textContent = sum.paidTotal ?? 0;
-    document.getElementById("kpiNotBooked").textContent = sum.paidNotBooked ?? 0;
-    document.getElementById("kpiRefund").textContent = sum.paidRefund ?? 0;
-    document.getElementById("kpiRescheduled").textContent = sum.paidRescheduled ?? 0;
-    document.getElementById("kpiBooked").textContent = sum.paidBooked ?? 0;
-    document.getElementById("kpiIntl").textContent = sum.intlChecked ?? 0;
-    document.getElementById("kpiIntlNotBooked").textContent = sum.intlNotBooked ?? 0;
-
-    const list = await apiFetch(api + "?action=list&status=" + encodeURIComponent(status) + rq);
-    if (!list.ok) throw new Error(list.error || "list failed");
-
-    render(list.items || []);
-
-    const rangeText = (sum.start && sum.end) ? `${sum.start} ~ ${sum.end}` : "近六個月";
-    document.getElementById("meta").textContent =
-      `區間：${rangeText}｜狀態：${status}｜筆數：${list.count ?? (list.items || []).length}｜更新：${new Date(list.updatedAt).toLocaleString("zh-TW", {hour12: false})}`;
-  }
-
-  document.querySelectorAll(".btn[data-status]").forEach(b => {
-    b.addEventListener("click", () => {
-      current = b.dataset.status;
-      setActive(current);
-      refresh(current).catch(e => setErr(e.message || String(e)));
-    });
+    if (!r.paid) return;
+    paidTotal++;
+    if (label === "未預約") paidNotBooked++;
+    else if (label === "退費") paidRefund++;
+    else if (label === "改期") paidRescheduled++;
+    else paidBooked++;
   });
+  return {
+    ok: true, range: range.label,
+    start: ymd_(range.start), end: ymd_(range.end),
+    paidTotal, paidNotBooked, paidRefund, paidRescheduled, paidBooked,
+    intlChecked, intlNotBooked,
+    updatedAt: new Date().toISOString()
+  };
+}
 
-  document.getElementById("btnRefresh").addEventListener("click", () => {
-    refresh(current).catch(e => setErr(e.message || String(e)));
+function buildList_(status, range) {
+  const all = readRowsInRange_(range);
+  const isIntlStatus = (status === "intl_all" || status === "intl_not_booked");
+  const source = isIntlStatus ? all.filter(r => r.intl) : all.filter(r => r.paid);
+  const items = [];
+  source.forEach(r => {
+    const label = classify_(r);
+    let shouldPush = false;
+    if (status === "paid_all" || status === "intl_all") shouldPush = true;
+    else if (status === "not_booked") shouldPush = (label === "未預約");
+    else if (status === "refund") shouldPush = (label === "退費");
+    else if (status === "rescheduled") shouldPush = (label === "改期");
+    else if (status === "booked") shouldPush = (label === "已預約");
+    else if (status === "intl_not_booked") shouldPush = (label === "未預約");
+    if (shouldPush) {
+      items.push({ "日期": r.dateText, "客戶本名": r.name, "預約日期": cleanText_(r.booking), "狀態": label });
+    }
   });
+  return {
+    ok: true, status, range: range.label,
+    start: ymd_(range.start), end: ymd_(range.end),
+    count: items.length, items,
+    updatedAt: new Date().toISOString()
+  };
+}
 
-  document.getElementById("btnApply").addEventListener("click", () => {
-    currentStart = document.getElementById("start").value || "";
-    currentEnd = document.getElementById("end").value || "";
-    refresh(current).catch(e => setErr(e.message || String(e)));
-  });
+function findHeaderIndex_(headers, candidates) {
+  const cleanHeaders = headers.map(h => normalizeHeader_(h));
+  for (const candidate of candidates) {
+    const idx = cleanHeaders.indexOf(normalizeHeader_(candidate));
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
 
-  document.getElementById("btnClear").addEventListener("click", () => {
-    currentStart = "";
-    currentEnd = "";
-    document.getElementById("start").value = "";
-    document.getElementById("end").value = "";
-    refresh(current).catch(e => setErr(e.message || String(e)));
-  });
+function cleanText_(v) {
+  return String(v || "").replace(/\u3000/g, " ").replace(/\r?\n|\r/g, " ").trim();
+}
 
-  setActive(current);
-  refresh(current).catch(e => setErr(e.message || String(e)));
-</script>
-</body>
-</html>
+function normalizeHeader_(v) {
+  return String(v || "").replace(/\u3000/g, "").replace(/\s+/g, "").trim();
+}
+
+function isPaid_(v) {
+  const s = cleanText_(v).toLowerCase();
+  if (!s) return false;
+  return ["v", "✓", "✔", "true", "1", "yes", "y", "已付款", "已付", "付款", "已對帳"].includes(s);
+}
+
+function isChecked_(v) {
+  const s = cleanText_(v).toLowerCase();
+  if (!s) return false;
+  return ["v", "✓", "✔", "true", "1", "yes", "y", "是", "✅", "國際美金", "美金"].includes(s);
+}
+
+function hasAny_(text, keywords) {
+  const t = cleanText_(text);
+  return keywords.some(k => t.indexOf(k) >= 0);
+}
+
+function isBlank_(v) {
+  return cleanText_(v) === "";
+}
+
+function parseDate_(v) {
+  const s = cleanText_(v);
+  if (!s) return null;
+  let m;
+  m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m) { const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])); return isNaN(dt) ? null : dt; }
+  m = s.match(/^(\d{2})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m) { const dt = new Date(2000 + Number(m[1]), Number(m[2]) - 1, Number(m[3])); return isNaN(dt) ? null : dt; }
+  return null;
+}
+
+function formatDate_(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return yyyy + "/" + mm + "/" + dd;
+}
