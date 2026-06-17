@@ -17,19 +17,21 @@
     .btn.primary{background:#111;color:#fff}
     .btn.intl{border-color:#0a7;color:#0a7}
     .btn.intl.primary{background:#0a7;color:#fff;border-color:#0a7}
-    .cards{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin:16px 0}
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:16px 0}
     .card{background:#fff;border:1px solid #e6e6e6;border-radius:14px;padding:16px}
     .card .t{font-size:14px;color:#666;margin-bottom:8px}
     .card .v{font-size:36px;font-weight:800}
     .card.intl{border-color:#111;background:#111;color:#fff}
     .card.intl .t{color:#bbb}
+    .card.intlnb{border-color:#0a7;background:#e9fbf4;color:#066}
+    .card.intlnb .t{color:#0a7}
     .bar{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px}
     .meta{margin:10px 0;color:#666;font-size:14px}
     table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
     th,td{padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:left}
     th{background:#fafafa;color:#666}
     .err{margin-top:16px;background:#fff3f3;border:1px solid #ffd1d1;color:#b00020;padding:14px;border-radius:12px;font-weight:700;white-space:pre-wrap}
-    @media(max-width:900px){.cards{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}}
     @media(max-width:500px){.cards{grid-template-columns:repeat(2,1fr)}}
   </style>
 </head>
@@ -58,6 +60,7 @@
     <div class="card"><div class="t">改期</div><div class="v" id="kpiRescheduled">-</div></div>
     <div class="card"><div class="t">已預約</div><div class="v" id="kpiBooked">-</div></div>
     <div class="card intl"><div class="t">國際美金（全部）</div><div class="v" id="kpiIntl">-</div></div>
+    <div class="card intlnb"><div class="t">國際美金未預約</div><div class="v" id="kpiIntlNotBooked">-</div></div>
   </div>
 
   <div class="bar">
@@ -169,6 +172,7 @@
     document.getElementById("kpiRescheduled").textContent = sum.paidRescheduled ?? 0;
     document.getElementById("kpiBooked").textContent = sum.paidBooked ?? 0;
     document.getElementById("kpiIntl").textContent = sum.intlChecked ?? 0;
+    document.getElementById("kpiIntlNotBooked").textContent = sum.intlNotBooked ?? 0;
 
     const list = await apiFetch(api + "?action=list&status=" + encodeURIComponent(status) + rq);
     if (!list.ok) throw new Error(list.error || "list failed");
