@@ -15,18 +15,22 @@
     input[type="date"]{padding:9px 10px;border:1px solid #ddd;border-radius:10px;background:#fff}
     .btn{border-radius:999px;padding:10px 16px;border:1px solid #111;background:#fff;font-weight:700;cursor:pointer}
     .btn.primary{background:#111;color:#fff}
-    .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:16px 0}
+    .btn.intl{border-color:#0a7;color:#0a7}
+    .btn.intl.primary{background:#0a7;color:#fff;border-color:#0a7}
+    .cards{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin:16px 0}
     .card{background:#fff;border:1px solid #e6e6e6;border-radius:14px;padding:16px}
     .card .t{font-size:14px;color:#666;margin-bottom:8px}
     .card .v{font-size:36px;font-weight:800}
+    .card.intl{border-color:#111;background:#111;color:#fff}
+    .card.intl .t{color:#bbb}
     .bar{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px}
     .meta{margin:10px 0;color:#666;font-size:14px}
     table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
     th,td{padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:left}
     th{background:#fafafa;color:#666}
     .err{margin-top:16px;background:#fff3f3;border:1px solid #ffd1d1;color:#b00020;padding:14px;border-radius:12px;font-weight:700;white-space:pre-wrap}
-    @media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}}
-    @media(max-width:500px){.cards{grid-template-columns:1fr}}
+    @media(max-width:900px){.cards{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:500px){.cards{grid-template-columns:repeat(2,1fr)}}
   </style>
 </head>
 <body>
@@ -53,6 +57,7 @@
     <div class="card"><div class="t">退費</div><div class="v" id="kpiRefund">-</div></div>
     <div class="card"><div class="t">改期</div><div class="v" id="kpiRescheduled">-</div></div>
     <div class="card"><div class="t">已預約</div><div class="v" id="kpiBooked">-</div></div>
+    <div class="card intl"><div class="t">國際美金（全部）</div><div class="v" id="kpiIntl">-</div></div>
   </div>
 
   <div class="bar">
@@ -61,6 +66,8 @@
     <button class="btn" data-status="rescheduled">改期</button>
     <button class="btn" data-status="booked">已預約</button>
     <button class="btn" data-status="paid_all">全部</button>
+    <button class="btn intl" data-status="intl_not_booked">國際美金未預約</button>
+    <button class="btn intl" data-status="intl_all">國際美金全部</button>
     <button class="btn" id="btnRefresh">重新整理</button>
   </div>
 
@@ -69,9 +76,10 @@
   <table>
     <thead>
       <tr>
-        <th style="width:140px">日期</th>
-        <th style="width:220px">預約日期</th>
-        <th style="width:120px">狀態</th>
+        <th style="width:120px">日期</th>
+        <th style="width:160px">客戶本名</th>
+        <th style="width:200px">預約日期</th>
+        <th style="width:100px">狀態</th>
       </tr>
     </thead>
     <tbody id="tbody"></tbody>
@@ -81,9 +89,7 @@
 </div>
 
 <script>
-  // 用 fetch 取代 JSONP，避免多帳號 /u/1/ 的問題
   async function apiFetch(url) {
-    // 強制移除 /u/N/ 確保不被帳號 redirect
     url = url.replace(/\/macros\/u\/\d+\/s\//, "/macros/s/");
     const res = await fetch(url, { redirect: "follow" });
     if (!res.ok) throw new Error("HTTP " + res.status + ": " + url);
@@ -128,6 +134,7 @@
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${esc(it["日期"] || "")}</td>
+        <td>${esc(it["客戶本名"] || "")}</td>
         <td>${esc(it["預約日期"] || "")}</td>
         <td>${esc(it["狀態"] || "")}</td>
       `;
@@ -161,6 +168,7 @@
     document.getElementById("kpiRefund").textContent = sum.paidRefund ?? 0;
     document.getElementById("kpiRescheduled").textContent = sum.paidRescheduled ?? 0;
     document.getElementById("kpiBooked").textContent = sum.paidBooked ?? 0;
+    document.getElementById("kpiIntl").textContent = sum.intlChecked ?? 0;
 
     const list = await apiFetch(api + "?action=list&status=" + encodeURIComponent(status) + rq);
     if (!list.ok) throw new Error(list.error || "list failed");
